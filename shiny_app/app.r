@@ -5,75 +5,58 @@ library(DT)
 library(ggplot2)
 
 #you must set the working directory
-setwd("c:/Users/milos_milic/Desktop/datasets/JODIE_RNN/")
+setwd("c:/Jodie_NN_projects/JODIE_RNN_Shiny/")
 
 
 #defines data frame for prediction data
-df <- read.csv("87294_prediction_data.csv")
+pred_data <- read.csv("87294_prediction_data.csv")
 
 #defines data frame for test data
-df2 <- read.csv("87294_test_data.csv")
+test_data <- read.csv("87294_test_data.csv")
 
 #reads in the data frame that has the choices for patients
 choice_table <- read.csv("choice_list.csv")
+
+#table that staores what variables to compare
 choice_table_var <- read.csv("column_choice.csv")
 
-#now we are just using the id column 
-mylist <- choice_table$id
-mylist2<- choice_table_var$acronym
 
- 
-  
-#how mancy checkboxes can be selected
+#how many checkboxes can be selected
 #https://stackoverflow.com/questions/31139791/checkboxgroupinput-set-minimum-and-maximum-number-of-selections-ticks
 my_min <- 1
 my_max <- 3
 
 
 #https://stackoverflow.com/questions/33105044/make-list-for-shiny-dropdown-selectinput
-#mylist <- as.list(choice_table$id)
-# Name it
-#names(mylist) <- choice_table$patient
 
 
 ui <- fluidPage(theme = shinytheme("united"),
-  titlePanel( strong(" Jodie RNN validation output")),
- # 
-#  sidebarLayout(position = "left",
-#                sidebarPanel("sidebar panel",   #the button that defines 
-#                             #selectInput(inputId = "selectInputo", label = "PATIENT ID",choices = mylist ),
-#                             #selectInput(inputId = "var1", label = "VARIABLE 1",choices = mylist2, selected = "cog1" ),
-#                             #selectInput(inputId = "var2", label = "VARIABLE 2",choices = mylist2, selected = "cog2" ),
-#                             #selectInput(inputId = "var3", label = "VARIABLE 3",choices = mylist2, selected = "cog3" )
-#                             
-#                             
-#                             #https://gallery.shinyapps.io/069-widget-check-group/
-#                             #does not really work, will use dropdown
-#                             #checkboxGroupInput("checkGroup", label = h3("Checkbox group"), 
-#                             #                   choices = list("Choice 1" = "geno1", "Choice 2" = "geno2", "Choice 3" = "geno3",
-#                             #                                  "Choice 4" = "img1", "Choice 5" = "img2", "Choice 6" = "img3",
-#                             #                                  "Choice 7" = "cog1", "Choice 8" = "cog2", "Choice 9" = "cog3",
-#                             #                                  "Choice 10" = "ses"),
-#                             #                   selected = 1),
-#                             
-#                             
-#                             
-#                             ),
-                
-               
-                
-                mainPanel(h3("Choose the patient ID and the variables you would like to compare"),
+  titlePanel( h1("Patient prognosis estimation",align = "center")),
+   
+                mainPanel(h3("Choose the patient ID"),
+                          h3("and the variables you would like to compare"),
+                          div("Red is the predicted prognosis", style = "color:red"),div("Blue is the test data", style = "color:blue"),
                           
-                          selectInput(inputId = "selectInputo", label = "PATIENT ID",choices = mylist ),
-                          div(style="display: inline-block;vertical-align:middle; width: 150px;",selectInput(inputId = "var1", label = "VARIABLE 1",choices = mylist2, selected = "cog1" )),
-                          div(style="display: inline-block;vertical-align:middle; width: 150px;",selectInput(inputId = "var2", label = "VARIABLE 2",choices = mylist2, selected = "cog2" )),
-                          div(style="display: inline-block;vertical-align:middle; width: 150px;",selectInput(inputId = "var3", label = "VARIABLE 3",choices = mylist2, selected = "cog3" )),
+                          
+                          #https://stackoverflow.com/questions/58049336/r-shiny-selecting-multiple-variables-with-one-checkbox
+                          checkboxGroupInput(inputId= "checkGroupGender", label = h3("Checkbox group"), 
+                                             choices = list("Male" = 1, "Female" = 0), 
+                                             selected = 1),
+                          
+                        
+                          
+                          selectInput(inputId = "selectInputo", label = "PATIENT ID",choices = choice_table$id ),
+                          
+                          #shows everything in one row
+                          div(style="display: inline-block;vertical-align:middle; width: 100px;",selectInput(inputId = "var1", label = "VARIABLE 1",choices = choice_table_var$acronym, selected = "cog1" )),
+                          div(style="display: inline-block;vertical-align:middle; width: 100px;",selectInput(inputId = "var2", label = "VARIABLE 2",choices = choice_table_var$acronym, selected = "cog2" )),
+                          div(style="display: inline-block;vertical-align:middle; width: 100px;",selectInput(inputId = "var3", label = "VARIABLE 3",choices = choice_table_var$acronym, selected = "cog3" )),
                           
                           
                           fluidPage(
                             #How ro do plots side to side
                             #https://stackoverflow.com/questions/34384907/how-can-put-multiple-plots-side-by-side-in-shiny-r
-                          fluidRow(splitLayout(cellWidths = c("66%", "66%","66%"),plotOutput("my_cog1_hist"),plotOutput("my_cog2_hist"),plotOutput("my_cog3_hist"))),
+                          fluidRow(splitLayout(cellWidths = c("50%", "50%","50%"),plotOutput("my_cog1_hist"),plotOutput("my_cog2_hist"),plotOutput("my_cog3_hist"))),
                           
                                    ),
                           #plotOutput("my_cog1_hist_pred"),
@@ -89,35 +72,54 @@ ui <- fluidPage(theme = shinytheme("united"),
                           
                           fluidRow(column(12,dataTableOutput('table_test'))
                           ))
-              # for sidebar),
-  
-  
-
-  
- 
-  
 )
 
 
 server <- shinyServer(function(input, output, session) {
   
-  #https://stackoverflow.com/questions/41246254/filter-renderdatatable-shiny
-  updateSelectInput(session, "selectInputo", label = NULL, choices = mylist,
-                    selected = NULL)
+
+
+  #https://stackoverflow.com/questions/49373540/reactive-updating-of-two-related-selectizeinput-widgets-in-shiny  
+  filterData_sex <- reactive({
+    #choice_table[which(choice_table$msex == ( input$gender2 | input$gender ) ),]
+    choice_table[which(choice_table$msex %in% ( input$checkGroupGender ) ),]
+    
+  })
   
-  #how to filter the data reactive element
-  #
+  #https://stackoverflow.com/questions/41246254/filter-renderdatatable-shiny   NOT NEEDED
+  # updateSelectInput(session, "selectInputo", label = NULL, choices = mylist,
+  #                  selected = NULL)
+  
+  
+  #How to reactively update 
+  #https://stackoverflow.com/questions/21465411/r-shiny-passing-reactive-to-selectinput-choices
+ observe({
+ updateSelectInput(session, "selectInputo", label = NULL, choices = filterData_sex(),
+                   selected = NULL)
+ })
+
+  #how to filter the data reactive element prediction data
+  
+  
+  #This is filetering on te drop down
   filterData <- reactive({
-    df[which(df$id == input$selectInputo),]
+    pred_data[which(pred_data$id == input$selectInputo),]
     
   })
   
   
-  #how to filter the data reactive element
+  #how to filter the data reactive element for the line test data
   filterData2 <- reactive({
-    df2[which(df2$id == input$selectInputo),]
+    test_data[which(test_data$id == input$selectInputo),]
     
   })
+  
+  
+  #pred_data filterdata() red is prediction data test_data filterdata2() blue is test data
+  
+  
+  
+  
   
   #how to plot differn
   #https://stackoverflow.com/questions/9109156/ggplot-combining-two-plots-from-different-data-frames
@@ -136,12 +138,7 @@ server <- shinyServer(function(input, output, session) {
   
   output$my_cog3_hist<- renderPlot(ggplot(filterData(), aes_string(x= "period", y = input$var3)) + geom_line(size =1, color = "red") + geom_line(data= filterData2(), size =1, color = "blue") 
                                    + ggtitle("Variable 3 over period analysis") + theme(plot.title = element_text(hjust = 0.5)))
-  #output$my_cog2_hist_test<- renderPlot(ggplot(filterData2(), aes(x= period, y = cog2)) + geom_line() )
-  
-  #output$my_cog3_hist_pred<- renderPlot(ggplot(filterData(), aes(x= period, y = cog3)) + geom_line() )
-  #output$my_cog3_hist_test<- renderPlot(ggplot(filterData2(), aes(x= period, y = cog3)) + geom_line() )
-  
-  
+
   
   
   
@@ -156,9 +153,9 @@ server <- shinyServer(function(input, output, session) {
   })
   
   #rendering the datatable for rediction data
-  #output$table_pred <- DT::renderDataTable(filterData(),selection="single",rownames = F,df, options = list(pageLength =5))
-  #output$table_pred <- DT::renderDataTable(df, options = list(pageLength =5), searchBuilder.columns = df$id)
-  #output$table_test <- DT::renderDataTable(df2,options = list(pageLength =10))
+  #output$table_pred <- DT::renderDataTable(filterData(),selection="single",rownames = F,pred_data, options = list(pageLength =5))
+  #output$table_pred <- DT::renderDataTable(pred_data, options = list(pageLength =5), searchBuilder.columns = pred_data$id)
+  #output$table_test <- DT::renderDataTable(test_data,options = list(pageLength =10))
   
 })
 
